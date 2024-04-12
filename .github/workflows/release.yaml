@@ -24,7 +24,7 @@ jobs:
         PRERELEASE: true
     - name: Zip repository contents
       run: |
-        zip -r JimboStats.zip '*.lua'
+        zip -r JimboStats.zip . -i '*.lua'
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
