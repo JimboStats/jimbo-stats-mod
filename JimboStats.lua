@@ -1,7 +1,7 @@
 --- STEAMODDED HEADER
 --- MOD_NAME: Jimbo Stats
 --- MOD_ID: JimboStats
---- MOD_AUTHOR: [demarcot, AxBolduc, mwithington, massbmx]
+--- MOD_AUTHOR: [demarcot, AxBolduc, mwithington]
 --- MOD_DESCRIPTION: Tracks stats for balatro runs
 
 ----------------------------------------------
