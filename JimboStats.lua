@@ -55,7 +55,7 @@ function Game:update_game_over(dt)
 			delay = 0,
 			blocking = false,
 			func = function()
-				request("http://localhost:3000/api/v1/runs", { body = gameStats })
+				request("http://api.jimbostats.com/api/v1/runs", { body = gameStats })
 				return true
 			end,
 		}))
