@@ -17,6 +17,7 @@ jobs:
         fetch-depth: '0'
 
     - name: Bump version and push tag
+      id: bump_and_tag
       uses: anothrNick/github-tag-action@v1 # Don't use @master or @v1 unless you're happy to test the latest version
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # if you don't want to set write permissions use a PAT token
@@ -31,8 +32,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ steps.bump_and_tag.outputs.new_tag }}
+        release_name: Release ${{ steps.bump_and_tag.outputs.new_tag }}
         draft: false
         prerelease: false
 
