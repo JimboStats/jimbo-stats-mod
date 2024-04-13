@@ -7,6 +7,48 @@
 ----------------------------------------------
 ------------MOD CODE -------------------------
 --
+function gameDataFromGame(game, savedGame)
+	local ante = game.round_resets.ante
+	local won = ante > game.win_ante
+	local round = game.round
+	local seed = game.pseudorandom.seed
+
+	-- lost to
+	local lost_to
+	if savedGame then
+		-- local blind_choice = { config = game.last_blind.name or G.P_BLINDS.bl_small }
+		-- lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
+		lost_to = game.last_blind.name
+	else
+		local blind_choice = { config = game.blind.config.blind or G.P_BLINDS.bl_small }
+		lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
+	end
+
+	local cards_played = game.round_scores["cards_played"].amt
+	local cards_discarded = game.round_scores["cards_discarded"].amt
+	local cards_purchased = game.round_scores["cards_purchased"].amt
+	local times_rerolled = game.round_scores["times_rerolled"].amt
+	local new_collection = game.round_scores["new_collection"].amt
+	local best_hand = number_format(game.round_scores["hand"].amt)
+	local most_played_hand = GetMostPlayedHand(game)
+
+	-- Anything here comes after the game ends
+	return {
+		bestHand = best_hand,
+		mostPlayedHand = most_played_hand,
+		cardsPlayed = cards_played,
+		cardsDiscarded = cards_discarded,
+		cardsPurchased = cards_purchased,
+		timesRerolled = times_rerolled,
+		newDiscoveries = new_collection,
+		won = won,
+		seed = seed,
+		ante = ante,
+		round = round,
+		lostTo = lost_to,
+	}
+end
+
 local game_start_run_ref = Game.start_run
 function Game:start_run(args)
 	local fromRef = game_start_run_ref(self, args)
@@ -17,39 +59,9 @@ local game_update_game_over_ref = Game.update_game_over
 function Game:update_game_over(dt)
 	local fromRef = game_update_game_over_ref(self, dt)
 
+	local gameStats = gameDataFromGame(G.GAME, false)
+
 	if not G.GAME.data_sent then
-		local ante = G.GAME.round_resets.ante
-		local won = ante > G.GAME.win_ante
-		local round = G.GAME.round
-		local seed = G.GAME.pseudorandom.seed
-
-		-- lost to
-		local blind_choice = { config = G.GAME.blind.config.blind or G.P_BLINDS.bl_small }
-		local lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
-
-		local cards_played = G.GAME.round_scores["cards_played"].amt
-		local cards_discarded = G.GAME.round_scores["cards_discarded"].amt
-		local cards_purchased = G.GAME.round_scores["cards_purchased"].amt
-		local times_rerolled = G.GAME.round_scores["times_rerolled"].amt
-		local new_collection = G.GAME.round_scores["new_collection"].amt
-		local best_hand = number_format(G.GAME.round_scores["hand"].amt)
-		local most_played_hand = GetMostPlayedHand()
-
-		-- Anything here comes after the game ends
-		local gameStats = {
-			bestHand = best_hand,
-			mostPlayedHand = most_played_hand,
-			cardsPlayed = cards_played,
-			cardsDiscarded = cards_discarded,
-			cardsPurchased = cards_purchased,
-			timesRerolled = times_rerolled,
-			newDiscoveries = new_collection,
-			won = won,
-			seed = seed,
-			ante = ante,
-			round = round,
-			lostTo = lost_to,
-		}
 		G.E_MANAGER:add_event(Event({
 			trigger = "immediate",
 			delay = 0,
@@ -59,13 +71,14 @@ function Game:update_game_over(dt)
 				return true
 			end,
 		}))
+
 		G.GAME.data_sent = true
 	end
 end
 
-function GetMostPlayedHand()
+function GetMostPlayedHand(game)
 	local handname, amount = localize("k_none"), 0
-	for k, v in pairs(G.GAME.hand_usage) do
+	for k, v in pairs(game.hand_usage) do
 		if v.count > amount then
 			handname = v.order
 			amount = v.count
@@ -77,12 +90,10 @@ end
 
 function requestOnThread(url, data)
 	local http_thread = love.thread.newThread([[
-      local https = require("socket.http")
-      local ltn12 = require("ltn12")
+      local https = require("https")
 			CHANNEL = love.thread.getChannel("stats_channel")
 
 			while true do
-				--Monitor the channel for any new requests
 				local request = CHANNEL:demand()
 				if request then
           local response = {}
@@ -92,21 +103,21 @@ function requestOnThread(url, data)
                 ["api-key"] = request.apiKey,
               }
 
-          local r, c, h, s = https.request({
-                url = request.url,
+          local code, body, headers = https.request(request.url, {
                 method = "POST",
                 headers = headers,
-                source = ltn12.source.string(request.data),
-                sink = ltn12.sink.table(response),
+                data = request.data
               })
         end
 			end
 		]])
 	local http_channel = love.thread.getChannel("stats_channel")
 	http_thread:start()
+	sendDebugMessage(data)
 
 	local request = {
 		url = url,
+		-- data = data,
 		data = data,
 		apiKey = G.SETTINGS.jimboStatsApiKey or "",
 	}
@@ -212,6 +223,19 @@ function create_api_key_input(event)
 	)
 end
 
+local start_setup_run_ref = G.FUNCS.start_setup_run
+G.FUNCS.start_setup_run = function(e)
+	if G.SETTINGS.current_setup == "New Run" then
+		if G.SAVED_GAME ~= nil then
+			-- send the saved game data
+			local gameStats = gameDataFromGame(G.SAVED_GAME.GAME, true)
+			request("http://api.jimbostats.com/api/v1/runs", { body = gameStats })
+		end
+	end
+
+	return start_setup_run_ref(e)
+end
+
 G.FUNCS.paste_api_key = function(e)
 	G.CONTROLLER.text_input_hook = e.UIBox:get_UIE_by_ID("text_input").children[1].children[1]
 	for i = 1, 8 do
@@ -235,4 +259,3 @@ G.FUNCS.save_api_key = function(e)
 end
 
 -- End API Key stuff
-
