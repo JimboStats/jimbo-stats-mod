@@ -8,31 +8,30 @@
 ------------MOD CODE -------------------------
 --
 function gameDataFromGame(game, savedGame)
-	local ante = game.round_resets.ante
-	local won = ante > game.win_ante
-	local round = game.round
-	local seed = game.pseudorandom.seed
+	local ante = game.GAME.round_resets.ante
+	local won = ante > game.GAME.win_ante
+	local round = game.GAME.round
+	local seed = game.GAME.pseudorandom.seed
 
 	-- lost to
 	local lost_to
 	if savedGame then
-		-- local blind_choice = { config = game.last_blind.name or G.P_BLINDS.bl_small }
-		-- lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
-		lost_to = game.last_blind.name
+		local blind_choice = { config = G.P_BLINDS[game.BLIND.config_blind] or G.P_BLINDS.bl_small }
+		lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
 	else
-		local blind_choice = { config = game.blind.config.blind or G.P_BLINDS.bl_small }
+		local blind_choice = { config = game.GAME.blind.config.blind or G.P_BLINDS.bl_small }
 		lost_to = localize({ type = "name_text", key = blind_choice.config.key, set = "Blind" })
 	end
 
-	local cards_played = game.round_scores["cards_played"].amt
-	local cards_discarded = game.round_scores["cards_discarded"].amt
-	local cards_purchased = game.round_scores["cards_purchased"].amt
-	local times_rerolled = game.round_scores["times_rerolled"].amt
-	local new_collection = game.round_scores["new_collection"].amt
-	local best_hand = number_format(game.round_scores["hand"].amt)
-	local most_played_hand = GetMostPlayedHand(game)
+	local cards_played = game.GAME.round_scores["cards_played"].amt
+	local cards_discarded = game.GAME.round_scores["cards_discarded"].amt
+	local cards_purchased = game.GAME.round_scores["cards_purchased"].amt
+	local times_rerolled = game.GAME.round_scores["times_rerolled"].amt
+	local new_collection = game.GAME.round_scores["new_collection"].amt
+	local best_hand = number_format(game.GAME.round_scores["hand"].amt)
+	local most_played_hand = GetMostPlayedHand(game.GAME)
 
-	-- Anything here comes after the game ends
+	-- Anything here comes after the game.GAME.ends
 	return {
 		bestHand = best_hand,
 		mostPlayedHand = most_played_hand,
@@ -59,7 +58,7 @@ local game_update_game_over_ref = Game.update_game_over
 function Game:update_game_over(dt)
 	local fromRef = game_update_game_over_ref(self, dt)
 
-	local gameStats = gameDataFromGame(G.GAME, false)
+	local gameStats = gameDataFromGame(G, false)
 
 	if not G.GAME.data_sent then
 		G.E_MANAGER:add_event(Event({
@@ -117,7 +116,6 @@ function requestOnThread(url, data)
 
 	local request = {
 		url = url,
-		-- data = data,
 		data = data,
 		apiKey = G.SETTINGS.jimboStatsApiKey or "",
 	}
@@ -228,10 +226,11 @@ G.FUNCS.start_setup_run = function(e)
 	if G.SETTINGS.current_setup == "New Run" then
 		if G.SAVED_GAME ~= nil then
 			-- send the saved game data
-			local gameStats = gameDataFromGame(G.SAVED_GAME.GAME, true)
+			local gameStats = gameDataFromGame(G.SAVED_GAME, true)
 			request("http://api.jimbostats.com/api/v1/runs", { body = gameStats })
 		end
 	end
+  G.GAME.data_sent = false
 
 	return start_setup_run_ref(e)
 end
